@@ -2,7 +2,7 @@ import h5py
 import PIL, PIL.Image
 import numpy as np
 
-input_f = h5py.File('fonts-25.hdf5', 'r')
+input_f = h5py.File('fonts-25-test.hdf5', 'r')
 dset = input_f['fonts']
 
 A_idx = 26
@@ -15,7 +15,7 @@ y_same = 1
 y_not = 0
 
 # Create new file to place examples and labels into
-f = h5py.File('fonts-25-discrim-task.hdf5', 'w')
+f = h5py.File('fonts-25-test-discrim-task.hdf5', 'w')
 img_dset = f.create_dataset('examples', (1, 5, 64, 64), chunks=(1, 5, 64, 64), maxshape=(None, 5, 64, 64), dtype='u1')
 labels_dset = f.create_dataset('labels', (1,), chunks=(1,), maxshape=(None,), dtype='int32')
 di = 0
