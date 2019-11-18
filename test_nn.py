@@ -1,70 +1,117 @@
 import h5py
 import tensorflow.keras as keras
+import tensorflow as tf
 import numpy as np
 
+np.random.seed(1)
+tf.random.set_seed(1)
+
+import PIL, PIL.Image
 
 # Idea: Few shot inference of fonts from a couple of examples
 # How to build tower network in keras? Soln: add
 
-input1 = keras.layers.Input(shape=(64, 64), name='input1')
-i1f = keras.layers.Flatten()(input1)
-x1 = keras.layers.Dense(8, activation='relu')(i1f)
-input2 = keras.layers.Input(shape=(64, 64), name='input2')
-i2f = keras.layers.Flatten()(input2)
-x2 = keras.layers.Dense(8, activation='relu')(i2f)
-input3 = keras.layers.Input(shape=(64, 64), name='input3')
-i3f = keras.layers.Flatten()(input3)
-x3 = keras.layers.Dense(8, activation='relu')(i3f)
-input4 = keras.layers.Input(shape=(64, 64), name='input4')
-i4f = keras.layers.Flatten()(input4)
-x4 = keras.layers.Dense(8, activation='relu')(i4f)
-input5 = keras.layers.Input(shape=(64, 64), name='input5')
-i5f = keras.layers.Flatten()(input5)
-x5 = keras.layers.Dense(8, activation='relu')(i5f)
+"""
+Model definition: tower network
+"""
 
+# Input
+X = keras.layers.Input(shape=(5, 64, 64), name='input')
+
+# Lambda layers pull out the 5 individual characters to test on (faster than preprocessing data)
+x1 = keras.layers.Lambda(lambda x: x[:, 0, :, :], output_shape=(64, 64), name='x1')(X)
+x2 = keras.layers.Lambda(lambda x: x[:, 1, :, :], output_shape=(64, 64), name='x2')(X)
+x3 = keras.layers.Lambda(lambda x: x[:, 2, :, :], output_shape=(64, 64), name='x3')(X)
+x4 = keras.layers.Lambda(lambda x: x[:, 3, :, :], output_shape=(64, 64), name='x4')(X)
+x5 = keras.layers.Lambda(lambda x: x[:, 4, :, :], output_shape=(64, 64), name='x5')(X)
+
+# Flatten the images into 64 * 64 dimensional vectors
+x1 = keras.layers.Flatten()(x1)
+x2 = keras.layers.Flatten()(x2)
+x3 = keras.layers.Flatten()(x3)
+x4 = keras.layers.Flatten()(x4)
+x5 = keras.layers.Flatten()(x5)
+
+# The towers consist of a fully connected layer
+x1 = keras.layers.Dense(16, activation='relu')(x1)
+x2 = keras.layers.Dense(16, activation='relu')(x2)
+x3 = keras.layers.Dense(16, activation='relu')(x3)
+x4 = keras.layers.Dense(16, activation='relu')(x4)
+x5 = keras.layers.Dense(16, activation='relu')(x5)
+
+# Concatenates the towers together and feed through 3 fully connected layers
 added = keras.layers.Add()([x1, x2, x3, x4, x5])
-fc1 = keras.layers.Dense(10, activation='relu')(added)
-fc2 = keras.layers.Dense(10, activation='relu')(fc1)
-fc3 = keras.layers.Dense(10, activation='relu')(fc2)
+fc1 = keras.layers.Dense(20, activation='relu')(added)
+fc2 = keras.layers.Dense(20, activation='relu')(fc1)
+fc3 = keras.layers.Dense(20, activation='relu')(fc2)
+
+# We use a sigmoidal activation to get a probability b/t 0 and 1
 out = keras.layers.Dense(1, activation='sigmoid')(fc3)
 
-model = keras.models.Model(inputs=[input1, input2, input3, input4, input5], outputs=out)
-
-model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+model = keras.models.Model(inputs=X, outputs=out)
+model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy', 'binary_accuracy'])
 model.summary()
 
-# Debug
+# Plotting
 # keras.utils.plot_model(model, to_file='model.png')
 
-f = h5py.File('fonts-25-discrim-task.hdf5', 'r')
-labels = f['labels'][:].reshape(2200, 1)
-examples = f['examples']
+FILENAME = 'fonts-25'
 
-# This is kind of expensive; is there a better way to structure the data to prevent slicing like this?
-print('Extracting data...')
-examples1 = examples[:, 0, :, :]
-examples2 = examples[:, 0, :, :]
-examples3 = examples[:, 0, :, :]
-examples4 = examples[:, 0, :, :]
-examples5 = examples[:, 0, :, :]
+# Open and prepare training set
+train = h5py.File('discrim-task-{}-train.hdf5'.format(FILENAME), 'r')
+labels = train['labels'][:].reshape(-1, 1) # Reshape to be dims (num_examples, 1)
+examples = train['examples'][:]
 
-print('Training model...')
-model.fit(x={'input1': examples1, 'input2': examples2, 'input3': examples3, 'input4': examples4, 'input5': examples5}, y=labels, shuffle=False, epochs=100)
+print('Training model on {} examples...'.format(train['labels'].shape[0]))
+history = model.fit(x=examples, y=labels, epochs=25) # See Keras docs for the history object
 
-f = h5py.File('fonts-25-test-discrim-task.hdf5', 'r')
-labels = f['labels'][:].reshape(2200, 1)
-examples = f['examples']
+# Open and prepare test set
+test = h5py.File('discrim-task-{}-test.hdf5'.format(FILENAME), 'r')
+labels = test['labels'][:].reshape(-1, 1)
+examples = test['examples'][:]
 
-# This is kind of expensive; is there a better way to structure the data to prevent slicing like this?
-print('Extracting test data...')
-examples1 = examples[:, 0, :, :]
-examples2 = examples[:, 0, :, :]
-examples3 = examples[:, 0, :, :]
-examples4 = examples[:, 0, :, :]
-examples5 = examples[:, 0, :, :]
+print('Testing model on {} examples...'.format(test['labels'].shape[0]))
+loss = model.evaluate(x=examples, y=labels)
 
-model.evaluate(x={'input1': examples1, 'input2': examples2, 'input3': examples3, 'input4': examples4, 'input5': examples5}, y=labels)
-# model.predict()
+# View classified examples from the test set
+predictions = model.predict(examples)
+predictions = predictions.reshape(-1)
+labels = labels.reshape(-1)
+pred_labels = np.round(predictions).astype(int)
 
-# Load data and create examples (A, B, C, D, E) where E may be or may be a part
-# of the font.
+# Get indexes of false positives and false negatives
+true_positives = np.where(np.logical_and(labels == 1, pred_labels == 1))[0]
+true_negatives = np.where(np.logical_and(labels == 0, pred_labels == 0))[0]
+false_positives = np.where(np.logical_and(labels == 1, pred_labels == 0))[0]
+false_negatives = np.where(np.logical_and(labels == 0, pred_labels == 1))[0]
+
+def display_picture(arr, idx, typ, pred):
+    img = PIL.Image.fromarray(np.hstack((arr[0], arr[1], arr[2], arr[3], arr[4])))
+    img.show()
+    img.save('ex{}-{}-{}.png'.format(idx, typ, str(pred)[2:5]))
+
+input('Go to true positives and true negatives...')
+
+idx = true_positives[0]
+display_picture(examples[idx], idx, 'tp', predictions[idx])
+print('Example {} (label: {}, predicted: {} ({}))'.format(idx, labels[idx], pred_labels[idx], predictions[idx]))
+
+idx = true_negatives[0]
+display_picture(examples[idx], idx, 'tn', predictions[idx])
+print('Example {} (label: {}, predicted: {} ({}))'.format(idx, labels[idx], pred_labels[idx], predictions[idx]))
+
+input('Go to false positives and false negatives...')
+
+print('false_positives: {}, false_negatives: {}'.format(false_positives.shape[0], false_negatives.shape[0]))
+
+for i in range(5):
+    idx = false_positives[i]
+    display_picture(examples[idx], idx, 'fp', predictions[idx])
+    print('Example {} (label: {}, predicted: {} ({}))'.format(idx, labels[idx], pred_labels[idx], predictions[idx]))
+
+for i in range(5):
+    idx = false_negatives[i]
+    display_picture(examples[idx], idx, 'fn', predictions[idx])
+    print('Example {} (label: {}, predicted: {} ({}))'.format(idx, labels[idx], pred_labels[idx], predictions[idx]))
+
+input('Press anything to exit...')
