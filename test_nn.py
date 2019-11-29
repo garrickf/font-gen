@@ -40,7 +40,7 @@ x4 = keras.layers.Dense(16, activation='relu')(x4)
 x5 = keras.layers.Dense(16, activation='relu')(x5)
 
 # Concatenates the towers together and feed through 3 fully connected layers
-added = keras.layers.Add()([x1, x2, x3, x4, x5])
+added = keras.layers.Concatenate()([x1, x2, x3, x4, x5])
 fc1 = keras.layers.Dense(20, activation='relu')(added)
 fc2 = keras.layers.Dense(20, activation='relu')(fc1)
 fc3 = keras.layers.Dense(20, activation='relu')(fc2)
