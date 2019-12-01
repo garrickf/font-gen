@@ -9,7 +9,7 @@ tf.random.set_seed(1)
 import PIL, PIL.Image
 
 # Idea: Few shot inference of fonts from a couple of examples
-# How to build tower network in keras? Soln: add
+# How to build tower network in keras? Soln: add (no, it's concat!)
 
 """
 Model definition: tower network
