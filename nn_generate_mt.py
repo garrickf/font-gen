@@ -12,9 +12,9 @@ tf.random.set_seed(1)
 import PIL, PIL.Image
 
 WORK_PATH = './gen-task/'
-EPOCHS = 1
+EPOCHS = 60
 
-def generate_task(infile, experiment, run_test_set, save_weights, weightfile):
+def generate_task(infile, experiment, run_test_set, save_weights, weightfile, tmp_dir):
     """
     Model definition: tower network on basis letters to get autoencoding, feed 
     through shared dense layers to retrieve all 26 letters (caps)
@@ -76,17 +76,39 @@ def generate_task(infile, experiment, run_test_set, save_weights, weightfile):
     basis = train['basis'][:]
 
     print('Training model on {} fonts...'.format(train['basis'].shape[0]))
-    history = model.fit(x=basis, y=outputs, epochs=EPOCHS) # See Keras docs for the history object
-    dump_history(history.history)
-    if save_weights:
-        model.save_weights('./gen-task/{}weights.hdf5'.format(namespace))
 
     def display_picture(arr, name):
         img = PIL.Image.fromarray(np.hstack([arr[idx] for idx in range(26)]))
         if img.mode != 'L':
             img = img.convert('L')
-        img.show()
-        img.save('{}{}.png'.format(namespace, name))
+        # img.show() # Debug (disable when running)
+        img.save('./{}/{}{}.png'.format(tmp_dir, namespace, name))
+
+    class ImageHistory(keras.callbacks.Callback):
+        """
+        Runs predict on the model and test set to visualize how the 
+        NN is learning. In a Keras callback, we have access to model
+        and params as class properties.
+        """
+        def __init__(self):
+            super() # Parent class constructor
+            self.image_idx = 0
+
+        def on_train_begin(self, logs={}):
+            predictions = self.model.predict(basis[:1])
+            display_picture(predictions[0], 'train-viz-{}'.format(self.image_idx))
+            self.image_idx += 1
+
+        def on_batch_end(self, batch, logs={}):
+            predictions = self.model.predict(basis[:1])
+            display_picture(predictions[0], 'train-viz-{}'.format(self.image_idx))
+            self.image_idx += 1
+
+    history = model.fit(x=basis, y=outputs, epochs=EPOCHS, batch_size=512, callbacks=[ImageHistory()]) # See Keras docs for the history object
+    dump_history(history.history)
+    if save_weights:
+        model.save_weights('./gen-task/{}weights.hdf5'.format(namespace))
+
 
     # Open and prepare val set
     test = h5py.File('./gen-task-dsets/gen-task-{}-val.hdf5'.format(infile), 'r')
@@ -120,15 +142,16 @@ def parse_args():
     parser.add_argument('--infile', '-i', default=DEFAULT_FILENAME, help='Name of data infile.')
     parser.add_argument('--experiment', '-e', default=0, help='Experiment number.')
     parser.add_argument('--test', '-t', action='store_true', help='Run test set (default: False).')
-    parser.add_argument('--save_weights', '-w', action='store_true', help='Save weights (default: False).')
-    parser.add_argument('--load_weights', '-l', help='Load weights from hdf5 file (default: None).')
+    parser.add_argument('--save_weights', '-s', action='store_true', help='Save weights (default: False).')
+    parser.add_argument('--load_weights', '-w', help='Load weights from hdf5 file (default: None).')
+    parser.add_argument('--tmp_dir', '-dir', default='tmp', help='Temp dir to dump info (default: tmp).')
 
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
-    generate_task(args.infile, args.experiment, args.test, args.save_weights, args.load_weights)
+    generate_task(args.infile, args.experiment, args.test, args.save_weights, args.load_weights, args.tmp_dir)
     
 
 if __name__ == '__main__':
