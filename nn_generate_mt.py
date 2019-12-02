@@ -35,21 +35,32 @@ def generate_task(infile, experiment, run_test_set, save_weights, weightfile, tm
     x4 = keras.layers.Flatten()(x4)
 
     # The towers consist of a fully connected layer
-    x1 = keras.layers.Dense(16, activation='relu')(x1)
-    x2 = keras.layers.Dense(16, activation='relu')(x2)
-    x3 = keras.layers.Dense(16, activation='relu')(x3)
-    x4 = keras.layers.Dense(16, activation='relu')(x4)
+    neurons = 32 if experiment == 2 or experiment == 4 or experiment == 5 else 16
+    x1 = keras.layers.Dense(neurons, activation='relu')(x1)
+    x2 = keras.layers.Dense(neurons, activation='relu')(x2)
+    x3 = keras.layers.Dense(neurons, activation='relu')(x3)
+    x4 = keras.layers.Dense(neurons, activation='relu')(x4)
+    if experiment == 3 or experiment == 4 or experiment == 5:
+        x1 = keras.layers.Dense(neurons, activation='relu')(x1)
+        x2 = keras.layers.Dense(neurons, activation='relu')(x2)
+        x3 = keras.layers.Dense(neurons, activation='relu')(x3)
+        x4 = keras.layers.Dense(neurons, activation='relu')(x4)
 
     # Concatenates the towers together and feed through fully connected layers
     added = keras.layers.Concatenate()([x1, x2, x3, x4])
-    fc = keras.layers.Dense(200, activation='relu')(added)
-    fc = keras.layers.Dense(200, activation='relu')(fc)
+    neurons = 400 if experiment == 2 or experiment == 3 or experiment == 5 else 200
+    fc = keras.layers.Dense(neurons, activation='relu')(added)
+    fc = keras.layers.Dense(neurons, activation='relu')(fc)
+    if experiment == 3 or experiment == 4 or experiment == 5:
+        fc = keras.layers.Dense(neurons, activation='relu')(fc)
     fc = keras.layers.Dense(26 * 64 * 64, activation='relu')(fc)
 
     # Reshape for 2D convolution and upsample
     fc = keras.layers.Reshape((26, 64, 64))(fc)
     if experiment == 0:
         fc = keras.layers.Conv2DTranspose(26, data_format='channels_first', kernel_size=(4, 4), padding='same', activation='relu')(fc)
+        fc = keras.layers.Conv2DTranspose(26, data_format='channels_first', kernel_size=(4, 4), padding='same', activation='relu')(fc)
+    elif experiment == 2 or experiment == 3 or experiment == 4 or experiment == 5:
         fc = keras.layers.Conv2DTranspose(26, data_format='channels_first', kernel_size=(4, 4), padding='same', activation='relu')(fc)
     else:
         pass # No convolutional layers
@@ -140,7 +151,7 @@ def parse_args():
     DEFAULT_FILENAME = 'fonts-50'
     parser = argparse.ArgumentParser(description='Run generative task.')
     parser.add_argument('--infile', '-i', default=DEFAULT_FILENAME, help='Name of data infile.')
-    parser.add_argument('--experiment', '-e', default=0, help='Experiment number.')
+    parser.add_argument('--experiment', '-e', default=0, type=int, help='Experiment number.')
     parser.add_argument('--test', '-t', action='store_true', help='Run test set (default: False).')
     parser.add_argument('--save_weights', '-s', action='store_true', help='Save weights (default: False).')
     parser.add_argument('--load_weights', '-w', help='Load weights from hdf5 file (default: None).')
