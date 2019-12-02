@@ -2,6 +2,8 @@
 *.ttf
 *.hdf5
 *.png
+*.pickle
+*.pyc
 test*/
 fonts-master*
 fonts-jpn-master*
