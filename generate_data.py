@@ -20,8 +20,9 @@ w0, h0 = 256, 256
 # Mode 'L' is 8-bit pixels, black and white
 blank = PIL.Image.new('L', (w0*3, h0*3), 255)
 
-# The characters we want to generate
-all_chars = string.ascii_letters + string.digits
+# The characters we want to generate (added Japanese hiragana)
+jpn_hiragana = 'あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん'
+all_chars = string.ascii_letters + string.digits + jpn_hiragana
 
 def generate_examples_from(fontname):
     imgs, data = [], []

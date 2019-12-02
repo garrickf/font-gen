@@ -3,3 +3,5 @@
 *.hdf5
 *.png
 test*/
+fonts-master*
+fonts-jpn-master*
