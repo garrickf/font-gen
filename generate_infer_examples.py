@@ -4,7 +4,7 @@ import numpy as np
 import random
 
 # TODO: Change this file to the desired input file name
-FILENAME = 'fonts-jpn-all'
+FILENAME = 'fonts-system'
 
 # Set random seed to make datasets reproducible. This script may get rerun a few times.
 random.seed(1)
@@ -35,9 +35,9 @@ all_output_dset['test'] = files['test'].create_dataset('outputs', (1, 46, 64, 64
 all_di['train'], all_di['val'], all_di['test'] = 0, 0, 0
 
 # Determine train/test/val split
-train_split = 0.7
-test_split = 0.15
-val_split = 0.15
+train_split = 1
+test_split = 0
+val_split = 0
 assert(train_split + test_split + val_split == 1)
 
 def get_split():
@@ -70,16 +70,16 @@ for font_idx in range(num_fonts):
     basis = np.array([a, h, q, j])
 
     # Create output
-    output = np.array([dset[font_idx, idx] for idx in all_hiragana])
+    # output = np.array([dset[font_idx, idx] for idx in all_hiragana])
     
     # Resize datasets and store
     group = get_split()
     img_dset, output_dset, di = all_img_dset[group], all_output_dset[group], all_di[group]
 
     img_dset.resize((di+1, *basis.shape))
-    output_dset.resize((di+1, *output.shape))
+    # output_dset.resize((di+1, *output.shape))
     img_dset[di] = basis
-    output_dset[di] = output
+    # output_dset[di] = output
     all_di[group] += 1
     files[group].flush()
 

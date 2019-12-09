@@ -21,8 +21,8 @@ w0, h0 = 256, 256
 blank = PIL.Image.new('L', (w0*3, h0*3), 255)
 
 # The characters we want to generate (added Japanese hiragana)
-jpn_hiragana = 'あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん'
-all_chars = string.ascii_letters + string.digits + jpn_hiragana
+# jpn_hiragana = 'あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん'
+all_chars = string.ascii_letters + string.digits #+ jpn_hiragana
 
 def generate_examples_from(fontname):
     imgs, data = [], []
@@ -85,10 +85,10 @@ def generate_examples_from(fontname):
 def all_fonts(d='./'):
     for dirpath, dirname, filenames in os.walk(d):
         for filename in filenames:
-            if filename.endswith('.ttf') or filename.endswith('.otf'):
+            if filename.endswith('.ttf') or filename.endswith('.otf') or filename.endswith('.ttc'):
                 yield os.path.join(dirpath, filename)
 
-
+# Usage: python generate_data.py ./fonts-system ./fonts-system
 f = h5py.File('{}.hdf5'.format(sys.argv[2]), 'w')
 dset = f.create_dataset('fonts', (1, len(all_chars), h, w), chunks=(1, len(all_chars), h, w), maxshape=(None, len(all_chars), h, w), dtype='u1')
 

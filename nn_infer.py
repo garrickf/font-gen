@@ -14,7 +14,47 @@ import PIL, PIL.Image
 WORK_PATH = './infer-task/'
 EPOCHS = 60
 
-def generate_task(infile, experiment, run_test_set, save_weights, weightfile, tmp_dir):
+"""
+exp3
+run command: python nn_infer.py -i fonts-jpn-all -e 1 -t -dir inf-exp-3 -w ./gen-task/fonts-all-2908_exp2_d2019-12-01_2h-3m_weights
+
+add -p to predict only
+python nn_infer.py -i fonts-system -e 0 -p -dir inf-sysfonts-task -w ./infer-task/fonts-jpn-all_exp1_d2019-12-01_20h-25m_weights
+
+add -s to save weights
+"""
+
+def generate_task(infile, experiment, run_test_set, save_weights, weightfile, tmp_dir, predict_only):
+    """
+    Helper functions
+    """
+    namespace = util.namespace(infile, experiment)
+
+    def display_picture(arr, name):
+        """
+        Displays 46 hiragana.
+        """
+        img = PIL.Image.fromarray(np.hstack([arr[idx] for idx in range(46)]))
+        if img.mode != 'L':
+            img = img.convert('L')
+        # img.show() # Debug (disable when running)
+        img.save('./{}/{}{}.png'.format(tmp_dir, namespace, name))
+
+    def display_basis(arr, name):
+        """
+        Displays basis letters.
+        """
+        img = PIL.Image.fromarray(np.hstack([arr[idx] for idx in range(4)]))
+        if img.mode != 'L':
+            img = img.convert('L')
+        # img.show() # Debug (disable when running)
+        img.save('./{}/{}{}.png'.format(tmp_dir, namespace, name))
+
+    def dump_history(history):
+        with open('{}/{}history.pickle'.format(WORK_PATH, namespace), 'wb') as f:
+            pickle.dump(history, f)
+            print('Dumped history.')
+
     """
     Model definition: tower network on basis letters to get autoencoding, feed 
     through shared dense layers to retrieve all 26 letters (caps)
@@ -47,6 +87,10 @@ def generate_task(infile, experiment, run_test_set, save_weights, weightfile, tm
     num_chars = 46
     fc = keras.layers.Dense(neurons, activation='relu')(added)
     fc = keras.layers.Dense(neurons, activation='relu')(fc)
+
+    if (experiment == 1):
+        fc = keras.layers.Dense(26 * 64 * 64, activation='relu')(fc) # Use same layer as in original gen task
+
     fc = keras.layers.Dense(num_chars * 64 * 64, activation='relu', name='hiragana_dense')(fc)
 
     # Reshape for 2D convolution and upsample
@@ -59,15 +103,27 @@ def generate_task(infile, experiment, run_test_set, save_weights, weightfile, tm
     model.compile(optimizer='adam', loss='mean_squared_error', metrics=[])
     model.summary()
 
+    # Plotting
+    # keras.utils.plot_model(model, to_file='model.png')
+    # exit()
+
     if weightfile is not None:
+        print('Loading weightfile...')
         model.load_weights('{}.hdf5'.format(weightfile), by_name=True)
 
-    namespace = util.namespace(infile, experiment)
+    if predict_only:
+        """
+        Does just prediciton on the data.
+        """ 
+        train = h5py.File('./infer-task-dsets/infer-task-{}.hdf5'.format(infile), 'r')
+        basis = train['basis'][:]
 
-    def dump_history(history):
-        with open('{}/{}history.pickle'.format(WORK_PATH, namespace), 'wb') as f:
-            pickle.dump(history, f)
-            print('Dumped history.')
+        predictions = model.predict(basis)
+        for i, (p, b) in enumerate(zip(predictions, basis)):
+            display_picture(p, 'predict{}'.format(i))
+            display_basis(b, 'basis{}'.format(i))
+
+        exit()
 
     # Open and prepare training set
     train = h5py.File('./infer-task-dsets/infer-task-{}-train.hdf5'.format(infile), 'r')
@@ -75,13 +131,6 @@ def generate_task(infile, experiment, run_test_set, save_weights, weightfile, tm
     basis = train['basis'][:]
 
     print('Training model on {} fonts...'.format(train['basis'].shape[0]))
-
-    def display_picture(arr, name):
-        img = PIL.Image.fromarray(np.hstack([arr[idx] for idx in range(26)]))
-        if img.mode != 'L':
-            img = img.convert('L')
-        # img.show() # Debug (disable when running)
-        img.save('./{}/{}{}.png'.format(tmp_dir, namespace, name))
 
     class ImageHistory(keras.callbacks.Callback):
         """
@@ -120,6 +169,7 @@ def generate_task(infile, experiment, run_test_set, save_weights, weightfile, tm
     # View classified examples from the validation set
     predictions = model.predict(basis)
     display_picture(predictions[0], 'val')
+    display_basis(basis[0], 'basis-val')
 
     if run_test_set:
         # Open and prepare test set
@@ -133,6 +183,7 @@ def generate_task(infile, experiment, run_test_set, save_weights, weightfile, tm
         # View classified examples from the validation set
         predictions = model.predict(basis)
         display_picture(predictions[0], 'test')
+        display_basis(basis[0], 'basis-test')
 
 
 def parse_args():
@@ -144,13 +195,14 @@ def parse_args():
     parser.add_argument('--save_weights', '-s', action='store_true', help='Save weights (default: False).')
     parser.add_argument('--load_weights', '-w', help='Load weights from hdf5 file (default: None).')
     parser.add_argument('--tmp_dir', '-dir', default='tmp', help='Temp dir to dump info (default: tmp).')
+    parser.add_argument('--predict', '-p', action='store_true', help='Predict only.')
 
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
-    generate_task(args.infile, args.experiment, args.test, args.save_weights, args.load_weights, args.tmp_dir)
+    generate_task(args.infile, args.experiment, args.test, args.save_weights, args.load_weights, args.tmp_dir, args.predict)
     
 
 if __name__ == '__main__':

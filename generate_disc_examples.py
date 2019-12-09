@@ -4,13 +4,13 @@ import numpy as np
 import random
 
 # TODO: Change this file to the desired input file name
-FILENAME = 'fonts-25'
+FILENAME = 'fonts-50'
 
 # Set random seed to make datasets reproducible. This script may get rerun a few times.
 random.seed(1)
 np.random.seed(1)
 
-input_f = h5py.File('{}.hdf5'.format(FILENAME), 'r')
+input_f = h5py.File('./datasets/{}.hdf5'.format(FILENAME), 'r')
 dset = input_f['fonts']
 num_fonts = dset.shape[0] # shape of (num_fonts, num_letters, 64, 64)
 
@@ -23,17 +23,39 @@ other_letter_idxs = [i for i in range(26, 26*2) if i not in [A_idx, H_idx, Q_idx
 y_same = 1
 y_not = 0
 
-train_f = h5py.File('discrim-task-{}-train.hdf5'.format(FILENAME), 'w')
-test_f = h5py.File('discrim-task-{}-test.hdf5'.format(FILENAME), 'w')
+files = {
+    'train': h5py.File('./disc-task-dsets/disc-task-{}-train.hdf5'.format(FILENAME), 'w'),
+    'val': h5py.File('./disc-task-dsets/disc-task-{}-val.hdf5'.format(FILENAME), 'w'),
+    'test': h5py.File('./disc-task-dsets/disc-task-{}-test.hdf5'.format(FILENAME), 'w'),
+}
 all_img_dset, all_labels_dset, all_di = {}, {}, {}
-all_img_dset['train'] = train_f.create_dataset('examples', (1, 5, 64, 64), chunks=(1, 5, 64, 64), maxshape=(None, 5, 64, 64), dtype='u1')
-all_img_dset['test'] = test_f.create_dataset('examples', (1, 5, 64, 64), chunks=(1, 5, 64, 64), maxshape=(None, 5, 64, 64), dtype='u1')
-all_labels_dset['train'] = train_f.create_dataset('labels', (1,), chunks=(1,), maxshape=(None,), dtype='int32')
-all_labels_dset['test'] = test_f.create_dataset('labels', (1,), chunks=(1,), maxshape=(None,), dtype='int32')
-all_di['train'], all_di['test'] = 0, 0
+all_img_dset['train'] = files['train'].create_dataset('examples', (1, 5, 64, 64), chunks=(1, 5, 64, 64), maxshape=(None, 5, 64, 64), dtype='u1')
+all_img_dset['val'] = files['val'].create_dataset('examples', (1, 5, 64, 64), chunks=(1, 5, 64, 64), maxshape=(None, 5, 64, 64), dtype='u1')
+all_img_dset['test'] = files['test'].create_dataset('examples', (1, 5, 64, 64), chunks=(1, 5, 64, 64), maxshape=(None, 5, 64, 64), dtype='u1')
+all_labels_dset['train'] = files['train'].create_dataset('labels', (1,), chunks=(1,), maxshape=(None,), dtype='int32')
+all_labels_dset['val'] = files['val'].create_dataset('labels', (1,), chunks=(1,), maxshape=(None,), dtype='int32')
+all_labels_dset['test'] = files['test'].create_dataset('labels', (1,), chunks=(1,), maxshape=(None,), dtype='int32')
+all_di['train'], all_di['val'], all_di['test'] = 0, 0, 0
 
-# Determine train/test split
-train_split = 0.9
+# Determine train/test/val split
+train_split = 0.7
+test_split = 0.15
+val_split = 0.15
+assert(train_split + test_split + val_split == 1)
+
+def get_split():
+    """
+    Randomly assigns train, val, or test based on above-defined splits.
+    """
+    cases = {
+        train_split: 'train',
+        train_split + val_split: 'val',
+        train_split + val_split + test_split: 'test',
+    }
+    chance = random.random()
+    for threshold in cases:
+        if chance < threshold:
+            return cases[threshold]
 
 for font_idx in range(num_fonts):
     a = dset[font_idx, A_idx]
@@ -49,7 +71,7 @@ for font_idx in range(num_fonts):
         images = np.array([a, h, q, j, letter])
         
         # Resize datasets and store
-        group = 'train' if random.random() < train_split else 'test'
+        group = get_split()
         img_dset, labels_dset, di = all_img_dset[group], all_labels_dset[group], all_di[group]
 
         img_dset.resize((di+1, *images.shape))
@@ -57,10 +79,7 @@ for font_idx in range(num_fonts):
         img_dset[di] = images
         labels_dset[di] = y_same
         all_di[group] += 1
-        if group == 'train': 
-            train_f.flush()
-        else:
-            test_f.flush()
+        files[group].flush()
 
     # Generate not examples. If we generate (26 - 4) correct examples per font,
     # we need the same number of negative examples
@@ -76,7 +95,7 @@ for font_idx in range(num_fonts):
         images = np.array([a, h, q, j, letter])
 
         # Resize datasets and store
-        group = 'train' if random.random() < train_split else 'test'
+        group = get_split()
         img_dset, labels_dset, di = all_img_dset[group], all_labels_dset[group], all_di[group]
 
         img_dset.resize((di+1, *images.shape))
@@ -84,10 +103,7 @@ for font_idx in range(num_fonts):
         img_dset[di] = images
         labels_dset[di] = y_not
         all_di[group] += 1
-        if group == 'train': 
-            train_f.flush()
-        else:
-            test_f.flush()
+        files[group].flush()
 
         # Debug
         # img = PIL.Image.fromarray(np.hstack((a, h, q, j, letter)))
@@ -95,7 +111,7 @@ for font_idx in range(num_fonts):
         # exit()
     print('Finished font {}'.format(font_idx))
 
-print('Number of train: {} Number of test: {}'.format(all_di['train'], all_di['test']))
+print('Number of train: {}, Number of val: {}, Number of test: {}'.format(all_di['train'], all_di['val'], all_di['test']))
 
-train_f.close()
-test_f.close()
+for f in files.values():
+    f.close()

@@ -71,6 +71,10 @@ def generate_task(infile, experiment, run_test_set, save_weights, weightfile, tm
     model.compile(optimizer='adam', loss='mean_squared_error', metrics=[])
     model.summary()
 
+    # Plotting
+    # keras.utils.plot_model(model, to_file='model.png')
+    # exit()
+
     if weightfile is not None:
         model.load_weights('./gen-task/{}.hdf5'.format(weightfile))
 
@@ -159,7 +163,9 @@ def parse_args():
 
     return parser.parse_args()
 
-
+"""
+python nn_generate_mt.py -i fonts-all-2908 -e 0
+"""
 def main():
     args = parse_args()
     generate_task(args.infile, args.experiment, args.test, args.save_weights, args.load_weights, args.tmp_dir)
